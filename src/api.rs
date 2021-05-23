@@ -82,7 +82,6 @@ impl Recipe {
         let serialized = serde_json::to_string(&self).unwrap();
         hasher.update(serialized);
 
-        //self.hash = format!("{:?}", hasher.finalize()).to_owned();
         self.hash = hex::encode(hasher.finalize());
     }
 
@@ -100,7 +99,7 @@ pub async fn login(
     let params = [("email", email), ("password", password)];
 
     let resp = client
-        .post(ENDPOINT.to_owned() + "/account/login/")
+        .get(format!("{}/account/login/", ENDPOINT))
         .form(&params)
         .send()
         .await?;
@@ -134,7 +133,7 @@ fn get_headers(token: &str) -> HeaderMap {
 pub async fn get_recipes(token: &str) -> Result<RecipesResponse, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let resp = client
-        .get(ENDPOINT.to_owned() + "/sync/recipes/")
+        .get(format!("{}/sync/recipes/", ENDPOINT))
         .headers(get_headers(token))
         .send()
         .await?;
@@ -159,7 +158,7 @@ pub async fn get_recipe_by_id(token: &str, id: &str) -> Result<Recipe, Box<dyn s
     let client = reqwest::Client::new();
 
     let resp = client
-        .get(ENDPOINT.to_owned() + "/sync/recipe/" + id + "/")
+        .get(format!("{}/sync/recipe/{}/", ENDPOINT, &recipe.uid))
         .headers(get_headers(token))
         .send()
         .await?;
@@ -194,12 +193,16 @@ pub async fn upload_recipe(
 
     recipe.update_hash();
 
+    // updating/creating recipes seems to have very weird HTTP requirements
+    // first, convert to JSON
     let body_json = serde_json::to_vec(&recipe).unwrap();
 
+    // then, GZip-encode that json with no compression
     let mut encoder = GzEncoder::new(Vec::new(), Compression::none());
     encoder.write_all(body_json.as_slice()).unwrap();
     let gzip_body = encoder.finish().unwrap();
 
+    // send that GZip-encoded data as a multi-part file field named "data"
     let part = reqwest::multipart::Part::bytes(gzip_body).file_name("data");
     let form = multipart::Form::new().part("data", part);
 

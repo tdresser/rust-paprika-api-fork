@@ -22,6 +22,7 @@ async fn login() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 // print all recipes (can be a lot of requests)
+#[allow(dead_code)]
 async fn list_recipes(token: &str) {
     let recipe_list = api::get_recipes(&token).await.unwrap().result;
     for (_, recipe_entry) in recipe_list.iter().enumerate() {
@@ -33,6 +34,7 @@ async fn list_recipes(token: &str) {
     }
 }
 
+#[allow(dead_code)]
 async fn update_recipe(token: &str) {
     let mut recipe = api::get_recipe_by_id(&token, "FD9A4450-8768-41E5-9121-3658A7411AB0")
         .await
@@ -48,10 +50,8 @@ async fn update_recipe(token: &str) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    if let Ok(token) = login().await {
-        println!("Login successfull!");
-        list_recipes(&token).await;
-        update_recipe(&token).await;
+    if let Ok(_token) = login().await {
+        println!("Login successful!");
     } else {
         return Err("Login failed!".into());
     }
