@@ -1,5 +1,6 @@
-mod api;
+pub mod api;
 
+#[cfg(test)]
 use std::env;
 
 #[cfg(test)]
