@@ -19,7 +19,7 @@ mod tests {
             if let Ok(password) = env::var("PAPRIKA_PASSWORD") {
                 let res = aw!(api::login(&email, &password));
                 match res {
-                    Ok(t) => println!("Yay! Token: {}", t),
+                    Ok(t) => println!("Yay! Token: {}", t.result.token),
                     Err(e) => panic!("Could not retrieve login token: {}", e)
                 }
             }
