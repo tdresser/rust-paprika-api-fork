@@ -1,5 +1,6 @@
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use hex;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::multipart;
 use serde::{Deserialize, Serialize};
@@ -7,13 +8,26 @@ use sha2::{Digest, Sha256};
 use std::io::prelude::*;
 use std::str;
 use uuid::Uuid;
-use hex;
 
-const ENDPOINT: &str = "https://www.paprikaapp.com/api/v2";
+const URL: &str = "https://www.paprikaapp.com/api/v2";
+
+pub enum QueryType {
+    GET,
+    POST
+}
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct LoginResponse {
-    pub result: Token,
+pub struct ApiResponse {
+    pub result: ApiResult,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)] // this is what lets serde guess at how to deserialize ApiResponse properly
+pub enum ApiResult {
+    Token(Token),
+    Bool(bool),
+    Recipes(Vec<RecipeEntry>),
+    Recipe(Recipe),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -22,24 +36,9 @@ pub struct Token {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RecipesResponse {
-    pub result: Vec<RecipeEntry>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct RecipeEntry {
     pub uid: String,
     pub hash: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RecipeResponse {
-    pub result: Recipe,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RecipePostResponse {
-    pub result: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Hash, Default, Clone)]
@@ -90,32 +89,17 @@ impl Recipe {
     }
 }
 
-pub async fn login(
-    email: &str,
-    password: &str,
-) -> Result<LoginResponse, Box<dyn std::error::Error>> {
-    let client = reqwest::Client::new();
-
+pub async fn login(email: &str, password: &str) -> Result<Token, Box<dyn std::error::Error>> {
     let params = [("email", email), ("password", password)];
 
-    let resp = client
-        .get(format!("{}/account/login/", ENDPOINT))
-        .form(&params)
-        .send()
-        .await?;
-
-    let resp_text = resp.text().await?;
-    let login_response: Result<LoginResponse, serde_json::Error> = serde_json::from_str(&resp_text);
-
-    match login_response {
-        Ok(r) => {
-            println!("Login response: {:?}", r);
-            Ok(r)
-        }
-        Err(e) => {
-            println!("Could not deserialize response: {}", resp_text);
-            Err(Box::new(e))
-        }
+    let token = simple_query("", "account/login", QueryType::POST, Some(Box::new(params))).await;
+    
+    match token {
+        Ok(r) => match r {
+            ApiResult::Token(r) => Ok(r),
+            _ => Err("Invalid API response".into()),
+        },
+        Err(e) => Err(Box::new(e)),
     }
 }
 
@@ -130,60 +114,69 @@ fn get_headers(token: &str) -> HeaderMap {
     headers
 }
 
-pub async fn get_recipes(token: &str) -> Result<RecipesResponse, Box<dyn std::error::Error>> {
+pub async fn simple_query(token: &str, endpoint: &str, Type: QueryType, form_args: Option<Box<[(&str, &str)]>>) -> Result<ApiResult, serde_json::Error> {
     let client = reqwest::Client::new();
-    let resp = client
-        .get(format!("{}/sync/recipes/", ENDPOINT))
+    let mut builder: reqwest::RequestBuilder;
+    
+    match Type {
+        QueryType::GET => builder = client.get(format!("{}/{}/", URL, endpoint)),
+        QueryType::POST => builder = client.post(format!("{}/{}/", URL, endpoint)),
+    }
+
+    match form_args {
+        Some(t) => {
+            builder = builder.form(&*t);
+        }
+        None => {}
+    }
+
+    let resp_text = builder
         .headers(get_headers(token))
         .send()
-        .await?;
+        .await
+        .expect("Request failed")
+        .text()
+        .await
+        .expect("Failed to decode response as text");
 
-    let resp_text = resp.text().await?;
-    let login_response: Result<RecipesResponse, serde_json::Error> =
-        serde_json::from_str(&resp_text);
+    //let resp_text = resp.text().await?;
+    let response: Result<ApiResponse, serde_json::Error> = serde_json::from_str(&resp_text);
 
-    match login_response {
-        Ok(r) => {
-            println!("Fetched {} recipes", r.result.len());
-            Ok(r)
-        }
-        Err(e) => {
-            println!("Could not deserialize response: {}", resp_text);
-            Err(Box::new(e))
-        }
+    match response {
+        Ok(r) => Ok(r.result),
+        Err(e) => Err(e),
+    }
+}
+
+pub async fn get_recipes(token: &str) -> Result<Vec<RecipeEntry>, Box<dyn std::error::Error>> {
+    let recipes = simple_query(token, "sync/recipes", QueryType::GET, None).await;
+
+    match recipes {
+        Ok(r) => match r {
+            ApiResult::Recipes(r) => Ok(r),
+            _ => Err("Invalid API response".into()),
+        },
+        Err(e) => Err(Box::new(e)),
     }
 }
 
 pub async fn get_recipe_by_id(token: &str, id: &str) -> Result<Recipe, Box<dyn std::error::Error>> {
-    let client = reqwest::Client::new();
-
-    let resp = client
-        .get(format!("{}/sync/recipe/{}/", ENDPOINT, &recipe.uid))
-        .headers(get_headers(token))
-        .send()
-        .await?;
-
-    let resp_text = resp.text().await?;
-
-    let login_response: Result<RecipeResponse, serde_json::Error> =
-        serde_json::from_str(&resp_text);
-
-    match login_response {
-        Ok(r) => {
-            //println!("Fetched recipe!");
-            Ok(r.result)
-        }
-        Err(e) => {
-            println!("Could not deserialize response: {}", resp_text);
-            Err(Box::new(e))
-        }
+    let endpoint = format!("{}/{}", "sync/recipe", &id);
+    let recipe = simple_query(token, &&endpoint, QueryType::GET, None).await;
+    
+    match recipe {
+        Ok(r) => match r {
+            ApiResult::Recipe(r) => Ok(r),
+            _ => Err("Invalid API response".into()),
+        },
+        Err(e) => Err(Box::new(e)),
     }
 }
 
 pub async fn upload_recipe(
     token: &str,
     recipe: &mut Recipe,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<bool, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
 
     // new recipes won't have UID
@@ -207,7 +200,7 @@ pub async fn upload_recipe(
     let form = multipart::Form::new().part("data", part);
 
     let resp_text = client
-        .post(format!("{}/sync/recipe/{}/", ENDPOINT, &recipe.uid))
+        .post(format!("{}/sync/recipe/{}/", URL, &recipe.uid))
         .multipart(form)
         .header("accept", "*/*")
         .header("accept-encoding", "utf-8")
@@ -219,14 +212,12 @@ pub async fn upload_recipe(
         .await
         .expect("Failed to decode response as text");
 
-    println!("TEXT: {:?}", resp_text);
+    let recipe_post_resp: Result<ApiResponse, serde_json::Error> = serde_json::from_str(&resp_text);
 
-    let login_response: Result<RecipePostResponse, serde_json::Error> = serde_json::from_str(&resp_text);
-
-    match login_response {
-        Ok(_r) => {
-            println!("Updated recipe!");
-            Ok(())
+    match recipe_post_resp {
+        Ok(r) => match r.result {
+            ApiResult::Bool(b) => Ok(b),
+            _ => Err("Recipe POST failed".into()),
         },
         Err(e) => {
             println!("Could not deserialize response: {}", resp_text);

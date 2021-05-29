@@ -12,7 +12,7 @@ mod tests {
         ($e:expr) => {
             tokio_test::block_on($e)
         };
-      }
+    }
 
     #[test]
     fn login() {
@@ -20,15 +20,15 @@ mod tests {
             if let Ok(password) = env::var("PAPRIKA_PASSWORD") {
                 let res = aw!(api::login(&email, &password));
                 match res {
-                    Ok(t) => println!("Yay! Token: {}", t.result.token),
-                    Err(e) => panic!("Could not retrieve login token: {}", e)
+                    Ok(t) => {
+                        println!("Yay! Token: {}", t.token);
+                    }
+                    Err(e) => panic!("Could not retrieve login token: {}", e),
                 }
-            }
-            else {
+            } else {
                 panic!("No password found; is the PAPRIKA_PASSWORD environment variable set?");
             }
-        }
-        else {
+        } else {
             panic!("No email found; is the PAPRIKA_EMAIL environment variable set?");
         };
     }

@@ -8,8 +8,8 @@ async fn login() -> Result<String, Box<dyn std::error::Error>> {
             let res = api::login(&email, &password).await;
             match res {
                 Ok(t) => {
-                    println!("Yay! Token: {}", t.result.token);
-                    Ok(t.result.token)
+                    println!("Yay! Token: {}", t.token);
+                    Ok(t.token)
                 }
                 Err(e) => Err(e.into()),
             }
@@ -24,7 +24,7 @@ async fn login() -> Result<String, Box<dyn std::error::Error>> {
 // print all recipes (can be a lot of requests)
 #[allow(dead_code)]
 async fn list_recipes(token: &str) {
-    let recipe_list = api::get_recipes(&token).await.unwrap().result;
+    let recipe_list = api::get_recipes(&token).await.unwrap();
     for (_, recipe_entry) in recipe_list.iter().enumerate() {
         let recipe_future = api::get_recipe_by_id(&token, &recipe_entry.uid).await;
         match recipe_future {
@@ -41,17 +41,21 @@ async fn update_recipe(token: &str) {
         .unwrap();
 
     recipe.name = String::from("Birria tacos");
-    api::upload_recipe(&token, &mut recipe).await.unwrap();
+    let success = api::upload_recipe(&token, &mut recipe).await.unwrap();
 
-    let recipe_after_edit = api::get_recipe_by_id(&token, &recipe.uid).await.unwrap();
-
-    println!("Edited recipe: \n{:?}", recipe_after_edit);
+    if success {
+        let recipe_after_edit = api::get_recipe_by_id(&token, &recipe.uid).await.unwrap();
+        println!("Edited recipe: \n{:?}", recipe_after_edit);
+    } else {
+        println!("Failed to update recipe");
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(_token) = login().await {
         println!("Login successful!");
+        //update_recipe(&_token).await;
     } else {
         return Err("Login failed!".into());
     }
