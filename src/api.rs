@@ -13,7 +13,7 @@ const URL: &str = "https://www.paprikaapp.com/api/v2";
 
 pub enum QueryType {
     GET,
-    POST
+    POST,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -27,6 +27,7 @@ pub enum ApiResult {
     Token(Token),
     Bool(bool),
     Recipes(Vec<RecipeEntry>),
+    Categories(Vec<Category>),
     Recipe(Recipe),
 }
 
@@ -39,6 +40,14 @@ pub struct Token {
 pub struct RecipeEntry {
     pub uid: String,
     pub hash: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Category {
+    pub uid: String,
+    pub order_flag: i32,
+    pub name: String,
+    pub parent_uid: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Hash, Default, Clone)]
@@ -74,7 +83,6 @@ pub struct Recipe {
 }
 
 impl Recipe {
-    // TODO: I don't know if/how Paprika validates hashes. Is this fine?
     fn update_hash(&mut self) {
         let mut hasher = Sha256::new();
 
@@ -89,20 +97,6 @@ impl Recipe {
     }
 }
 
-pub async fn login(email: &str, password: &str) -> Result<Token, Box<dyn std::error::Error>> {
-    let params = [("email", email), ("password", password)];
-
-    let token = simple_query("", "account/login", QueryType::POST, Some(Box::new(params))).await;
-    
-    match token {
-        Ok(r) => match r {
-            ApiResult::Token(r) => Ok(r),
-            _ => Err("Invalid API response".into()),
-        },
-        Err(e) => Err(Box::new(e)),
-    }
-}
-
 fn get_headers(token: &str) -> HeaderMap {
     let mut headers = HeaderMap::new();
 
@@ -114,20 +108,22 @@ fn get_headers(token: &str) -> HeaderMap {
     headers
 }
 
-pub async fn simple_query(token: &str, endpoint: &str, Type: QueryType, form_args: Option<Box<[(&str, &str)]>>) -> Result<ApiResult, serde_json::Error> {
+pub async fn simple_query(
+    token: &str,
+    endpoint: &str,
+    query_type: QueryType,
+    form_args: Option<Box<[(&str, &str)]>>,
+) -> Result<ApiResult, serde_json::Error> {
     let client = reqwest::Client::new();
     let mut builder: reqwest::RequestBuilder;
-    
-    match Type {
+
+    match query_type {
         QueryType::GET => builder = client.get(format!("{}/{}/", URL, endpoint)),
         QueryType::POST => builder = client.post(format!("{}/{}/", URL, endpoint)),
     }
 
-    match form_args {
-        Some(t) => {
-            builder = builder.form(&*t);
-        }
-        None => {}
+    if let Some(t) = form_args {
+        builder = builder.form(&*t);
     }
 
     let resp_text = builder
@@ -139,12 +135,25 @@ pub async fn simple_query(token: &str, endpoint: &str, Type: QueryType, form_arg
         .await
         .expect("Failed to decode response as text");
 
-    //let resp_text = resp.text().await?;
     let response: Result<ApiResponse, serde_json::Error> = serde_json::from_str(&resp_text);
 
     match response {
         Ok(r) => Ok(r.result),
         Err(e) => Err(e),
+    }
+}
+
+pub async fn login(email: &str, password: &str) -> Result<Token, Box<dyn std::error::Error>> {
+    let params = [("email", email), ("password", password)];
+
+    let token = simple_query("", "account/login", QueryType::POST, Some(Box::new(params))).await;
+
+    match token {
+        Ok(r) => match r {
+            ApiResult::Token(r) => Ok(r),
+            _ => Err("Invalid API response".into()),
+        },
+        Err(e) => Err(Box::new(e)),
     }
 }
 
@@ -160,10 +169,22 @@ pub async fn get_recipes(token: &str) -> Result<Vec<RecipeEntry>, Box<dyn std::e
     }
 }
 
+pub async fn get_categories(token: &str) -> Result<Vec<Category>, Box<dyn std::error::Error>> {
+    let categories = simple_query(token, "sync/categories", QueryType::GET, None).await;
+
+    match categories {
+        Ok(r) => match r {
+            ApiResult::Categories(r) => Ok(r),
+            _ => Err("Invalid API response".into()),
+        },
+        Err(e) => Err(Box::new(e)),
+    }
+}
+
 pub async fn get_recipe_by_id(token: &str, id: &str) -> Result<Recipe, Box<dyn std::error::Error>> {
     let endpoint = format!("{}/{}", "sync/recipe", &id);
     let recipe = simple_query(token, &&endpoint, QueryType::GET, None).await;
-    
+
     match recipe {
         Ok(r) => match r {
             ApiResult::Recipe(r) => Ok(r),
@@ -180,7 +201,7 @@ pub async fn upload_recipe(
     let client = reqwest::Client::new();
 
     // new recipes won't have UID
-    if recipe.uid == "" {
+    if recipe.uid.is_empty() {
         recipe.generate_uuid();
     }
 
