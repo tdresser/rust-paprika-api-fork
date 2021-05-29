@@ -2,6 +2,14 @@
 name = "paprika-api"
 version = "0.1.0"
 edition = "2018"
+authors = ["Andrew Thomas (CyanBlob) <andrewjamest1993@gmail.com"]
+license-file = "LICENSE"
+description = "A Rust wrapper for the Paprika 3 Recipe Manager API: https://www.paprikaapp.com"
+homepage = "https://gitlab.com/CyanBlob/paprika-api"
+repository = "https://gitlab.com/CyanBlob/paprika-api"
+readme = "README.md"
+keywords = ["paprika", "recipe", "recipes"]
+categories = ["api-bindings"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

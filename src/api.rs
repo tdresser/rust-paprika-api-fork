@@ -184,7 +184,7 @@ pub async fn get_categories(token: &str) -> Result<Vec<Category>, Box<dyn std::e
 pub async fn get_recipe_by_id(token: &str, id: &str) -> Result<Recipe, Box<dyn std::error::Error>> {
     let endpoint = format!("{}/{}", "sync/recipe", &id);
     let recipe = simple_query(token, &&endpoint, QueryType::GET, None).await;
-
+    
     match recipe {
         Ok(r) => match r {
             ApiResult::Recipe(r) => Ok(r),
@@ -194,6 +194,10 @@ pub async fn get_recipe_by_id(token: &str, id: &str) -> Result<Recipe, Box<dyn s
     }
 }
 
+/// Uploads a new recipe (when uid == "") or updates an existing one (when uid exists in database already)
+/// #arguments
+/// * `token` a login token from `login()`
+/// * `recipe` a populated Recipe, with or without a `uid` (for updating or creating a new recipe)
 pub async fn upload_recipe(
     token: &str,
     recipe: &mut Recipe,
