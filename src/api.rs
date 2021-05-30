@@ -79,7 +79,7 @@ pub struct Recipe {
     pub on_favorites: bool,
     pub on_grocery_list: bool,
     pub created: String,
-    pub photo_url: String,
+    pub photo_url: Option<String>,
 }
 
 impl Recipe {
@@ -245,7 +245,6 @@ pub async fn upload_recipe(
             _ => Err("Recipe POST failed".into()),
         },
         Err(e) => {
-            println!("Could not deserialize response: {}", resp_text);
             Err(Box::new(e))
         }
     }
