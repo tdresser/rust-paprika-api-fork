@@ -141,10 +141,8 @@ pub async fn simple_query(
         .headers(get_headers(token))
         .send()
         .await?
-        //.expect("Request failed")
         .text()
         .await?;
-        //.expect("Failed to decode response as text");
 
     let response: Result<ApiResponse, serde_json::Error> = serde_json::from_str(&resp_text);
 
