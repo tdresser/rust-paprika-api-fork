@@ -1,9 +1,9 @@
 [package]
 name = "paprika-api"
-version = "0.1.1"
+version = "1.0.0"
 edition = "2018"
 authors = ["Andrew Thomas (CyanBlob) <andrewjamest1993@gmail.com"]
-license-file = "LICENSE"
+license = "MIT"
 description = "A Rust wrapper for the Paprika 3 Recipe Manager API: https://www.paprikaapp.com"
 homepage = "https://gitlab.com/CyanBlob/paprika-api"
 repository = "https://gitlab.com/CyanBlob/paprika-api"
@@ -23,3 +23,5 @@ sha2 = "0.9.5"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 flate2 = "1.0.20"
 hex = "0.4.3"
+mockito = "0.30.0"
+lazy_static = "1.4.0"

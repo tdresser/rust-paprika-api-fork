@@ -2,6 +2,9 @@
 
 A Rust wrapper for the Paprika 3 Recipe Manager API: https://www.paprikaapp.com/
 
+# Stability
+Paprika doesn't publish their API, and it could change at any time. If something breaks, open an issue on the repo.
+
 # Usage
 **Include the library:**  
 ```rust
@@ -10,25 +13,13 @@ use paprika_api::api;
 
 **Generate a login token:**
 ```rust
-// Logs in via environment variables, but you can choose whatever method you like.
-// The scope starting at `let res = api::login(&email, &password).await;` is what really matters
-async fn login() -> Result<String, Box<dyn std::error::Error>> {
-    if let Ok(email) = env::var("PAPRIKA_EMAIL") {
-        if let Ok(password) = env::var("PAPRIKA_PASSWORD") {
-            let res = api::login(&email, &password).await;
-            match res {
-                Ok(t) => {
-                    println!("Yay! Token: {}", t.token);
-                    Ok(t.token)
-                }
-                Err(e) => Err(e.into()),
-            }
-        } else {
-            Err("No password found; is the PAPRIKA_PASSWORD environment variable set?".into())
-        }
-    } else {
-        Err("No email found; is the PAPRIKA_EMAIL environment variable set?".into())
+let res = api::login(&email, &password).await;
+match res {
+    Ok(t) => {
+        println!("Yay! Token: {}", t.token);
+        Ok(t.token)
     }
+    Err(e) => Err(e.into()),
 }
 ```
 `paprika-api` does not cache the login token. Applications using `paprika-api` must cache the token themselves.
@@ -68,7 +59,7 @@ async fn update_recipe(token: &str, id: &str) {
 ```
 
 **Create new recipe:**  
-*Important note:* Paprika does some field validation. If the recipe creation fails, it's likely that you have a field with invalid data. The following is a working example
+*Important note:* Paprika does some field validation. I'm not sure exactly what they validate yet. If the recipe creation fails, it's likely that you have a field with invalid data. The following is a working example
 ```rust
 async fn create_recipe(token: &str) {
     let mut recipe = api::Recipe {

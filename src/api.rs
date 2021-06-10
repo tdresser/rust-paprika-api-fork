@@ -1,6 +1,8 @@
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use hex;
+#[cfg(test)]
+use mockito;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::multipart;
 use serde::{Deserialize, Serialize};
@@ -9,7 +11,15 @@ use std::io::prelude::*;
 use std::str;
 use uuid::Uuid;
 
-const URL: &str = "https://www.paprikaapp.com/api/v2";
+#[cfg(not(test))]
+lazy_static! {
+    static ref URL: String = String::from("https://www.paprikaapp.com/api/v2");
+}
+
+#[cfg(test)]
+lazy_static! {
+    static ref URL: String = mockito::server_url();
+}
 
 pub enum QueryType {
     GET,
@@ -113,13 +123,14 @@ pub async fn simple_query(
     endpoint: &str,
     query_type: QueryType,
     form_args: Option<Box<[(&str, &str)]>>,
-) -> Result<ApiResult, serde_json::Error> {
+//) -> Result<ApiResult, serde_json::Error> {
+) -> Result<ApiResult, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let mut builder: reqwest::RequestBuilder;
 
     match query_type {
-        QueryType::GET => builder = client.get(format!("{}/{}/", URL, endpoint)),
-        QueryType::POST => builder = client.post(format!("{}/{}/", URL, endpoint)),
+        QueryType::GET => builder = client.get(format!("{}/{}/", &**URL, endpoint)),
+        QueryType::POST => builder = client.post(format!("{}/{}/", &**URL, endpoint)),
     }
 
     if let Some(t) = form_args {
@@ -129,17 +140,17 @@ pub async fn simple_query(
     let resp_text = builder
         .headers(get_headers(token))
         .send()
-        .await
-        .expect("Request failed")
+        .await?
+        //.expect("Request failed")
         .text()
-        .await
-        .expect("Failed to decode response as text");
+        .await?;
+        //.expect("Failed to decode response as text");
 
     let response: Result<ApiResponse, serde_json::Error> = serde_json::from_str(&resp_text);
 
     match response {
         Ok(r) => Ok(r.result),
-        Err(e) => Err(e),
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -153,7 +164,7 @@ pub async fn login(email: &str, password: &str) -> Result<Token, Box<dyn std::er
             ApiResult::Token(r) => Ok(r),
             _ => Err("Invalid API response".into()),
         },
-        Err(e) => Err(Box::new(e)),
+        Err(e) => Err(e),
     }
 }
 
@@ -165,7 +176,7 @@ pub async fn get_recipes(token: &str) -> Result<Vec<RecipeEntry>, Box<dyn std::e
             ApiResult::Recipes(r) => Ok(r),
             _ => Err("Invalid API response".into()),
         },
-        Err(e) => Err(Box::new(e)),
+        Err(e) => Err(e),
     }
 }
 
@@ -177,20 +188,20 @@ pub async fn get_categories(token: &str) -> Result<Vec<Category>, Box<dyn std::e
             ApiResult::Categories(r) => Ok(r),
             _ => Err("Invalid API response".into()),
         },
-        Err(e) => Err(Box::new(e)),
+        Err(e) => Err(e),
     }
 }
 
 pub async fn get_recipe_by_id(token: &str, id: &str) -> Result<Recipe, Box<dyn std::error::Error>> {
     let endpoint = format!("{}/{}", "sync/recipe", &id);
     let recipe = simple_query(token, &&endpoint, QueryType::GET, None).await;
-    
+
     match recipe {
         Ok(r) => match r {
             ApiResult::Recipe(r) => Ok(r),
             _ => Err("Invalid API response".into()),
         },
-        Err(e) => Err(Box::new(e)),
+        Err(e) => Err(e),
     }
 }
 
@@ -225,17 +236,15 @@ pub async fn upload_recipe(
     let form = multipart::Form::new().part("data", part);
 
     let resp_text = client
-        .post(format!("{}/sync/recipe/{}/", URL, &recipe.uid))
+        .post(format!("{}/sync/recipe/{}/", &**URL, &recipe.uid))
         .multipart(form)
         .header("accept", "*/*")
         .header("accept-encoding", "utf-8")
         .header("authorization", "Bearer ".to_string() + token)
         .send()
-        .await
-        .expect("Request failed")
+        .await?
         .text()
-        .await
-        .expect("Failed to decode response as text");
+        .await?;
 
     let recipe_post_resp: Result<ApiResponse, serde_json::Error> = serde_json::from_str(&resp_text);
 
@@ -244,8 +253,6 @@ pub async fn upload_recipe(
             ApiResult::Bool(b) => Ok(b),
             _ => Err("Recipe POST failed".into()),
         },
-        Err(e) => {
-            Err(Box::new(e))
-        }
+        Err(e) => Err(Box::new(e)),
     }
 }
