@@ -7,6 +7,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::multipart;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use wasm_bindgen::prelude::wasm_bindgen;
 use std::io::prelude::*;
 use std::str;
 use uuid::Uuid;
@@ -46,13 +47,15 @@ pub struct Token {
     pub token: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RecipeEntry {
     pub uid: String,
     pub hash: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Category {
     pub uid: String,
     pub order_flag: i32,
@@ -60,6 +63,7 @@ pub struct Category {
     pub parent_uid: Option<String>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Debug, Serialize, Deserialize, Hash, Default, Clone)]
 pub struct Recipe {
     pub uid: String,
@@ -82,6 +86,7 @@ pub struct Recipe {
     pub photo_large: Option<String>,
     pub scale: Option<String>,
     pub hash: String,
+    #[wasm_bindgen(skip)]
     pub categories: Vec<String>,
     pub rating: i32,
     pub in_trash: bool,
